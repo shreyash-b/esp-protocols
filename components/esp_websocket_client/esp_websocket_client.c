@@ -668,7 +668,7 @@ static int esp_websocket_client_send_with_exact_opcode(esp_websocket_client_hand
         // send with ws specific way and specific opcode
         wlen = esp_transport_ws_send_raw(client->transport, opcode, (char *)client->tx_buffer, need_write,
                                          (timeout == portMAX_DELAY) ? -1 : timeout * portTICK_PERIOD_MS);
-        if (wlen < 0 || (wlen == 0 && need_write != 0)) {
+        if (wlen < 0) {
             ret = wlen;
             esp_websocket_free_buf(client, true);
             esp_tls_error_handle_t error_handle = esp_transport_get_error_handle(client->transport);
