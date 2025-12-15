@@ -624,6 +624,8 @@ static int esp_websocket_client_send_with_exact_opcode(esp_websocket_client_hand
     int need_write = len;
     int wlen = 0, widx = 0;
     bool contained_fin = opcode & WS_TRANSPORT_OPCODES_FIN;
+    TickType_t start_ticks = 0;
+    int remaining_timeout_ms = -1;
 
     if (client == NULL || len < 0 || (data == NULL && len > 0)) {
         ESP_LOGE(TAG, "Invalid arguments");
@@ -657,6 +659,10 @@ static int esp_websocket_client_send_with_exact_opcode(esp_websocket_client_hand
         goto unlock_and_return;
     }
 
+    if (timeout != portMAX_DELAY) {
+        start_ticks = xTaskGetTickCount();
+    }
+
     while (widx < len || opcode) {  // allow for sending "current_opcode" only message with len==0
         if (need_write > client->buffer_size) {
             need_write = client->buffer_size;
@@ -665,9 +671,22 @@ static int esp_websocket_client_send_with_exact_opcode(esp_websocket_client_hand
             opcode = opcode | WS_TRANSPORT_OPCODES_FIN;
         }
         memcpy(client->tx_buffer, data + widx, need_write);
+
+        if (timeout != portMAX_DELAY) {
+            TickType_t elapsed_ticks = xTaskGetTickCount() - start_ticks;
+            if (elapsed_ticks >= timeout) {
+                /* TODO: Should we return -1 or number of bytes */
+                ret = -1;
+                esp_websocket_free_buf(client, true);
+                goto unlock_and_return;
+            }
+            TickType_t remaining_ticks = timeout - elapsed_ticks;
+            remaining_timeout_ms = remaining_ticks * portTICK_PERIOD_MS;
+        }
+
         // send with ws specific way and specific opcode
         wlen = esp_transport_ws_send_raw(client->transport, opcode, (char *)client->tx_buffer, need_write,
-                                         (timeout == portMAX_DELAY) ? -1 : timeout * portTICK_PERIOD_MS);
+                                         remaining_timeout_ms);
         if (wlen < 0) {
             ret = wlen;
             esp_websocket_free_buf(client, true);
