@@ -701,6 +701,10 @@ static int esp_websocket_client_send_with_exact_opcode(esp_websocket_client_hand
             esp_websocket_client_abort_connection(client, WEBSOCKET_ERROR_TYPE_TCP_TRANSPORT);
             goto unlock_and_return;
         }
+        if (wlen != need_write ) {
+            /* Complete frame is not sent, try again */
+            continue;
+        }
         opcode = 0;
         widx += wlen;
         need_write = len - widx;
